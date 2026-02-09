@@ -75,7 +75,7 @@ export default function RecommendationPage() {
       state: {
         preferences: {
           ...formData,
-          tripType: formData.tripTypes[0],
+          tripTypes: formData.tripTypes, // Send all selected types
         },
       },
     });
@@ -363,23 +363,37 @@ export default function RecommendationPage() {
                 )}
               </div>
 
-              {/* Trip Types */}
+              {/* Trip Types - Multiple Selection */}
               <div>
                 <label className={`block text-sm font-semibold mb-3 ${
                   theme === 'dark' ? 'text-slate-200' : 'text-gray-700'
                 }`}>
-                  Preferred Trip Type
+                  Preferred Trip Types
+                  <span className="text-xs font-normal ml-2 opacity-70">(Select one or more)</span>
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {tripOptions.map((option) => {
-                    const selected = formData.tripTypes[0] === `${option.icon} ${option.title}`;
+                    const selected = formData.tripTypes.includes(`${option.icon} ${option.title}`);
                     return (
                       <button
                         key={option.title}
                         type="button"
-                        onClick={() =>
-                          setFormData({ ...formData, tripTypes: [`${option.icon} ${option.title}`] })
-                        }
+                        onClick={() => {
+                          const tripType = `${option.icon} ${option.title}`;
+                          if (selected) {
+                            // Remove if already selected
+                            setFormData({ 
+                              ...formData, 
+                              tripTypes: formData.tripTypes.filter(t => t !== tripType) 
+                            });
+                          } else {
+                            // Add to selection
+                            setFormData({ 
+                              ...formData, 
+                              tripTypes: [...formData.tripTypes, tripType] 
+                            });
+                          }
+                        }}
                         className={`p-4 rounded-xl border-2 transition-all duration-200 text-left group ${
                           selected
                             ? 'border-teal-500 bg-teal-500/10 shadow-lg shadow-teal-500/20'
@@ -420,6 +434,16 @@ export default function RecommendationPage() {
                     );
                   })}
                 </div>
+                {formData.tripTypes.length > 0 && (
+                  <div className={`mt-3 text-sm flex items-center gap-2 ${
+                    theme === 'dark' ? 'text-teal-400' : 'text-teal-600'
+                  }`}>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span>{formData.tripTypes.length} {formData.tripTypes.length === 1 ? 'type' : 'types'} selected</span>
+                  </div>
+                )}
                 {errors.tripTypes && (
                   <p className="text-red-500 text-sm mt-2 flex items-center gap-1">
                     <span>⚠️</span> {errors.tripTypes}
