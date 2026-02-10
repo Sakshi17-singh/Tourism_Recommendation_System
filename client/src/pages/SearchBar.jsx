@@ -22,7 +22,7 @@ export default function SearchBar({ placeholder, className = "", onSearch = null
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isHomePage, setIsHomePage] = useState(false);
-  const [activeCategory, setActiveCategory] = useState("all"); // Internal category state
+  const [activeCategory, setActiveCategory] = useState("all");
 
   // Update internal category when prop changes
   useEffect(() => {
@@ -46,13 +46,12 @@ export default function SearchBar({ placeholder, className = "", onSearch = null
     setShowSuggestions(false);
     setIsFocused(false);
     setSelectedIndex(-1);
-    setQuery(""); // Also clear the query
+    setQuery("");
   }, [location.pathname]);
 
   // Handle clicks outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // Check if click is inside dropdown or input
       const isClickInsideDropdown = dropdownRef.current && dropdownRef.current.contains(event.target);
       const isClickInsideInput = inputRef.current && inputRef.current.contains(event.target);
       
@@ -88,7 +87,6 @@ export default function SearchBar({ placeholder, className = "", onSearch = null
       
       const data = await res.json();
 
-      // Sort by relevance and limit to 8 results
       const suggestions = data.results
         .sort((a, b) => {
           const aScore = calculateRelevance(a, searchQuery);
@@ -144,7 +142,7 @@ export default function SearchBar({ placeholder, className = "", onSearch = null
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [query, activeCategory, performSearch]); // Added activeCategory dependency
+  }, [query, activeCategory, performSearch]);
 
   // Keyboard navigation
   const handleKeyDown = (e) => {
@@ -179,7 +177,6 @@ export default function SearchBar({ placeholder, className = "", onSearch = null
   const handleSearch = () => {
     if (!query.trim()) return;
     
-    // Include category in the search URL
     navigate(`/searchresult?q=${encodeURIComponent(query)}&category=${activeCategory}`);
     setShowSuggestions(false);
     setResults([]);
@@ -296,24 +293,24 @@ export default function SearchBar({ placeholder, className = "", onSearch = null
       
       {/* Search Container */}
       <div className={`
-        relative flex items-center rounded-xl shadow-lg border overflow-hidden
-        transition-all duration-300
+        relative flex items-center rounded-2xl shadow-2xl border-2 overflow-hidden
+        transition-all duration-300 z-[10000] backdrop-blur-sm
         ${isFocused 
-          ? 'border-teal-500 shadow-teal-500/20' 
+          ? 'border-teal-400 shadow-teal-500/30 bg-white/95 dark:bg-slate-800/95 scale-[1.02]' 
           : theme === 'dark' 
-            ? 'border-slate-600 bg-slate-800' 
-            : 'border-gray-200 bg-white'
+            ? 'border-slate-700/50 bg-slate-800/90 hover:border-slate-600' 
+            : 'border-gray-300/50 bg-white/90 hover:border-gray-400'
         }
       `}>
         
         {/* Search Icon */}
-        <div className="pl-6 pr-3">
+        <div className="pl-5 pr-2">
           <div className={`
-            w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300
+            w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-300
             ${isFocused 
-              ? 'bg-gradient-to-br from-teal-500 to-cyan-600' 
+              ? 'bg-gradient-to-br from-teal-500 to-cyan-500 shadow-lg shadow-teal-500/30' 
               : theme === 'dark' 
-                ? 'bg-slate-700' 
+                ? 'bg-slate-700/80' 
                 : 'bg-gray-100'
             }
           `}>
@@ -343,11 +340,8 @@ export default function SearchBar({ placeholder, className = "", onSearch = null
               : placeholder || "Search destinations, hotels, restaurants..."
           }
           className={`
-            flex-grow px-4 py-4 outline-none text-base bg-transparent
-            ${theme === 'dark' 
-              ? 'text-white placeholder-slate-400' 
-              : 'text-gray-800 placeholder-gray-500'
-            }
+            flex-grow px-4 py-5 outline-none text-base bg-transparent font-medium
+            ${theme === 'dark' ? 'text-white placeholder-slate-400' : 'text-gray-800 placeholder-gray-500'}
             ${isListening ? 'placeholder-red-500' : ''}
           `}
           autoComplete="off"
@@ -367,12 +361,13 @@ export default function SearchBar({ placeholder, className = "", onSearch = null
           <button
             onClick={clearSearch}
             className={`
-              w-10 h-10 mx-2 rounded-lg transition-all duration-300 flex items-center justify-center
+              w-10 h-10 mx-2 rounded-xl transition-all duration-300 flex items-center justify-center
               ${theme === 'dark' 
-                ? 'hover:bg-slate-700 text-slate-400 hover:text-white' 
-                : 'hover:bg-gray-100 text-gray-400 hover:text-gray-600'
+                ? 'hover:bg-slate-700/80 text-slate-400 hover:text-white' 
+                : 'hover:bg-gray-100 text-gray-400 hover:text-gray-700'
               }
             `}
+            title="Clear search"
           >
             <FaTimes className="text-lg" />
           </button>
@@ -383,11 +378,11 @@ export default function SearchBar({ placeholder, className = "", onSearch = null
           <button
             onClick={handleVoiceSearch}
             className={`
-              w-10 h-10 mx-2 rounded-lg transition-all duration-300 flex items-center justify-center
+              w-10 h-10 mx-2 rounded-xl transition-all duration-300 flex items-center justify-center
               ${isListening 
-                ? 'bg-red-500 text-white animate-pulse' 
+                ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50' 
                 : theme === 'dark' 
-                  ? 'hover:bg-slate-700 text-slate-400 hover:text-teal-400' 
+                  ? 'hover:bg-slate-700/80 text-slate-400 hover:text-teal-400' 
                   : 'hover:bg-gray-100 text-gray-400 hover:text-teal-500'
               }
             `}
@@ -402,12 +397,12 @@ export default function SearchBar({ placeholder, className = "", onSearch = null
           onClick={handleSearch}
           disabled={!query.trim() || isLoading}
           className={`
-            px-8 py-4 font-semibold text-base transition-all duration-300
-            flex items-center gap-2 rounded-r-xl
+            px-8 py-5 font-semibold text-base transition-all duration-300
+            flex items-center gap-2 rounded-r-2xl
             ${query.trim() && !isLoading
-              ? 'bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white'
+              ? 'bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white shadow-lg hover:shadow-xl'
               : theme === 'dark'
-                ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             }
           `}
@@ -420,11 +415,10 @@ export default function SearchBar({ placeholder, className = "", onSearch = null
       {/* Suggestions Modal */}
       {showSuggestions && query.trim() && isHomePage && (
         <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[999]"
+          {/* Backdrop - Solid Black */}
+          <div
+            className="fixed inset-0 bg-black z-[999]"
             onClick={(e) => {
-              // Only close if clicking the backdrop itself, not its children
               if (e.target === e.currentTarget) {
                 setShowSuggestions(false);
                 setIsFocused(false);
@@ -432,58 +426,45 @@ export default function SearchBar({ placeholder, className = "", onSearch = null
               }
             }}
           >
-            {/* Modal Container - Compact to show only 2 items */}
-            <div 
+            {/* Modal Container */}
+            <div
               ref={dropdownRef}
-              className={`
+              className="
                 absolute left-1/2 top-24 -translate-x-1/2 w-full max-w-4xl
-                ${theme === 'dark' 
-                  ? 'bg-slate-800' 
-                  : 'bg-white'
-                }
-                border-2 rounded-2xl shadow-2xl
-                ${isFocused 
-                  ? 'border-teal-500' 
-                  : theme === 'dark' ? 'border-slate-600' : 'border-gray-200'
-                }
+                bg-black
+                border-2 border-teal-500 rounded-2xl shadow-2xl
                 mx-4
                 flex flex-col
                 animate-in fade-in slide-in-from-top-4 duration-300
-              `}
+              "
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Header - Compact */}
+              {/* Header */}
               {results.length > 0 && (
-                <div className={`
+                <div className="
                   px-3 py-2 border-b font-medium text-xs flex-shrink-0
-                  ${theme === 'dark' 
-                    ? 'text-slate-300 border-slate-700 bg-slate-750' 
-                    : 'text-gray-700 border-gray-200 bg-gray-50'
-                  }
-                `}>
+                  text-white border-gray-700 bg-black
+                ">
                   {results.length} {results.length === 1 ? 'result' : 'results'} found
                 </div>
               )}
-              
-              {/* Scrollable Content - Fixed height to show exactly 2 items */}
-              <div 
-                className="overflow-y-auto"
-                style={{ 
-                  maxHeight: results.length > 0 ? '120px' : 'auto' // Height for exactly 2 items (60px each)
+
+              {/* Scrollable Content - Shows only 1.5 items, scroll for more */}
+              <div
+                className="overflow-y-auto custom-scrollbar"
+                style={{
+                  maxHeight: results.length > 0 ? '100px' : 'auto' // Smaller height showing ~1.5 items
                 }}
               >
                 {results.length > 0 ? (
-                  <SearchDropdownList 
-                    results={results} 
+                  <SearchDropdownList
+                    results={results}
                     onSelect={handleSelect}
                     selectedIndex={selectedIndex}
                     theme={theme}
                   />
                 ) : !isLoading && (
-                  <div className={`
-                    px-4 py-8 text-center
-                    ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}
-                  `}>
+                  <div className="px-4 py-8 text-center text-white">
                     <FaSearch className="text-3xl mx-auto mb-3 opacity-50" />
                     <p className="font-medium text-base">No results found for "{query}"</p>
                     <p className="text-xs mt-1">Try different keywords</p>

@@ -399,7 +399,7 @@ export default function Footer() {
                     <span className="text-amber-400 hover:text-amber-300 transition-all duration-500 hover:scale-105 inline-block">Roamio</span> 
                     <span className="text-teal-400 hover:text-teal-300 transition-all duration-500 hover:scale-105 inline-block">Wanderly</span>
                   </h2>
-                  <p className="text-xs text-gray-300 font-black tracking-wider animate-fade-in-up animation-delay-200 hover:text-gray-100 transition-colors duration-300 uppercase">Your Premium Nepal Travel Companion</p>
+                  <p className="text-xs text-gray-300 font-semibold tracking-wider animate-fade-in-up animation-delay-200 hover:text-gray-100 transition-colors duration-300 uppercase">Your Premium Nepal Travel Companion</p>
                 </div>
               </div>
               <div className="mb-4">
@@ -512,7 +512,7 @@ export default function Footer() {
                   <div className="w-1 h-1 bg-current rounded-full mr-2 opacity-60 group-hover/link:opacity-100"></div>
                   <span className="font-semibold tracking-wide">{t('footer.newsletter')}</span>
                 </Link>
-                <Link to="/itinerary" className="group/link flex items-center text-sm text-gray-300 hover:text-white transition-all duration-300 hover:translate-x-1">
+                <Link to="/guide" className="group/link flex items-center text-sm text-gray-300 hover:text-white transition-all duration-300 hover:translate-x-1">
                   <div className="w-1 h-1 bg-current rounded-full mr-2 opacity-60 group-hover/link:opacity-100"></div>
                   <span className="font-semibold tracking-wide">Itinerary Planner</span>
                 </Link>

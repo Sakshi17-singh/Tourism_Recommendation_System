@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { UserButton, SignUpButton, SignedIn, SignedOut, useUser } from "@clerk/clerk-react";
+import { UserButton, SignUpButton, SignedIn, SignedOut, useUser, useClerk } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from 'react-i18next';
 import NepaliCalendar from "../../pages/NepaliCalendar";
@@ -26,6 +26,7 @@ export const Header = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const { t, i18n } = useTranslation();
+  const { signOut } = useClerk();
 
   // Authentication state with error handling
   let clerkAvailable = false;
@@ -2069,7 +2070,13 @@ const AuthenticationButtons = ({ clerkAvailable, onNavigation, theme }) => {
       <SignedOut>
         {/* Enhanced Sign Up Button */}
         <button 
-          onClick={() => onNavigation('/sign-up')}
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Sign Up button clicked!');
+            onNavigation('/sign-up');
+          }}
           className={`
             group relative px-6 py-2.5 rounded-xl font-semibold transition-all duration-300 
             transform-gpu will-change-transform overflow-hidden btn-professional
@@ -2077,9 +2084,10 @@ const AuthenticationButtons = ({ clerkAvailable, onNavigation, theme }) => {
             hover:from-teal-700 hover:via-emerald-700 hover:to-cyan-700
             text-white shadow-lg hover:shadow-xl hover:scale-105
             border border-teal-500/30 backdrop-blur-sm
+            cursor-pointer z-10
           `}
         >
-          <span className="relative z-10 flex items-center gap-2.5">
+          <span className="relative z-10 flex items-center gap-2.5 pointer-events-none">
             <div className="p-1 rounded-md bg-white/20 group-hover:bg-white/30 transition-colors duration-300">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
@@ -2089,15 +2097,15 @@ const AuthenticationButtons = ({ clerkAvailable, onNavigation, theme }) => {
           </span>
           
           {/* Enhanced shimmer effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none" />
           
           {/* Glow effect */}
-          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 opacity-0 group-hover:opacity-20 blur-xl transition-all duration-500 -z-10"></div>
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-teal-600 to-cyan-600 opacity-0 group-hover:opacity-20 blur-xl transition-all duration-500 -z-10 pointer-events-none"></div>
         </button>
       </SignedOut>
       
       <SignedIn>
-        {/* Enhanced User Button Container */}
+        {/* Enhanced User Button Container - Fixed for Dropdown */}
         <div className={`
           flex items-center p-2 rounded-xl border backdrop-blur-xl transition-all duration-300
           hover:shadow-lg hover:scale-105 transform-gpu
@@ -2105,26 +2113,35 @@ const AuthenticationButtons = ({ clerkAvailable, onNavigation, theme }) => {
             ? 'border-teal-700/50 bg-teal-900/30 hover:bg-teal-800/40' 
             : 'border-teal-200/50 bg-teal-50/30 hover:bg-teal-100/40'
           }
-          relative overflow-hidden group
-        `}>
+          relative
+        `}
+        style={{ zIndex: 9999 }}
+        >
           <UserButton 
+            afterSignOutUrl="/"
             appearance={{
               elements: {
                 avatarBox: "w-8 h-8 rounded-lg",
-                userButtonPopoverCard: "shadow-2xl border-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl",
-                userButtonPopoverActionButton: "hover:bg-teal-50 dark:hover:bg-teal-900/50"
+                userButtonPopoverCard: "shadow-2xl border-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl !fixed !top-16 !right-4 z-[9999]",
+                userButtonPopoverActionButton: "hover:bg-teal-50 dark:hover:bg-teal-900/50 cursor-pointer",
+                userButtonPopoverActionButtonText: "text-slate-700 dark:text-slate-200",
+                userButtonPopoverActionButtonIcon: "text-slate-600 dark:text-slate-300",
+                userButtonPopoverFooter: "hidden"
+              },
+              layout: {
+                shimmer: true
+              }
+            }}
+            userProfileMode="modal"
+            userProfileProps={{
+              appearance: {
+                elements: {
+                  rootBox: "z-[9999]",
+                  card: "shadow-2xl"
+                }
               }
             }}
           />
-          
-          {/* Subtle glow effect */}
-          <div className={`
-            absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300
-            bg-gradient-to-r ${theme === 'dark' 
-              ? 'from-teal-600/10 to-cyan-600/10' 
-              : 'from-teal-500/5 to-cyan-500/5'
-            }
-          `}></div>
         </div>
       </SignedIn>
     </div>
@@ -2538,7 +2555,6 @@ const MenuBar = ({ theme, onNavigation, forceRefreshLocation, selectedLanguage, 
     {
       category: "Plan",
       items: [
-        { name: "AI Chat", path: "/chat", icon: "💬", description: "AI travel assistant" },
         { name: "Recommendations", path: "/recommendation", icon: "💡", description: "Get suggestions" },
         { name: "Itinerary", path: "/guide", icon: "📋", description: "Plan your trip" },
         { name: "Wishlist", path: "/wishlist", icon: "❤️", description: "Saved places" }
