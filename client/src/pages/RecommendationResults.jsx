@@ -15,25 +15,6 @@ export default function RecommendationResults() {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [testingConnection, setTestingConnection] = useState(false);
-
-  // Test backend connection
-  const testBackendConnection = async () => {
-    setTestingConnection(true);
-    try {
-      const response = await fetch('http://localhost:8000/api/recommendations/stats');
-      if (response.ok) {
-        const data = await response.json();
-        alert(`✅ Backend is connected!\n\nTotal recommendations in database: ${data.stats.total_recommendations}`);
-      } else {
-        alert(`❌ Backend responded with error: ${response.status}`);
-      }
-    } catch (err) {
-      alert(`❌ Cannot connect to backend!\n\nError: ${err.message}\n\nMake sure backend is running on port 8000.`);
-    } finally {
-      setTestingConnection(false);
-    }
-  };
 
   // � Get preferences safely
   const preferences = location.state?.preferences;
@@ -70,25 +51,18 @@ export default function RecommendationResults() {
             phone: preferences.phone,
             travellers: preferences.travellers,
             tripDuration: preferences.tripDuration,
+            travelMonth: preferences.travelMonth, // Added travel month
             tripTypes: preferences.tripTypes || [preferences.tripType],
           }),
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch recommendations');
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('API Error Response:', errorData);
+          throw new Error(errorData.error || 'Failed to fetch recommendations');
         }
 
         const data = await response.json();
-        
-        console.log('✅ Received recommendations:', data.total_matches);
-        console.log('First 3 places with images:');
-        data.recommendations.slice(0, 3).forEach((place, i) => {
-          console.log(`${i + 1}. ${place.name}`);
-          console.log(`   Image: ${place.image || 'No image'}`);
-          if (place.image) {
-            console.log(`   Full URL: http://localhost:8000${place.image}`);
-          }
-        });
         
         if (data.success && data.recommendations) {
           setRecommendations(data.recommendations);
@@ -100,9 +74,17 @@ export default function RecommendationResults() {
         console.error('Error details:', {
           message: err.message,
           stack: err.stack,
-          preferences: preferences
+          preferences: preferences,
+          errorType: err.name
         });
-        setError(err.message || 'Failed to fetch recommendations. Please check if backend is running on port 8000.');
+        
+        // Provide more specific error messages
+        let errorMessage = err.message;
+        if (err.name === 'TypeError' && err.message.includes('fetch')) {
+          errorMessage = 'Cannot connect to backend server. Please ensure the backend is running on http://localhost:8000';
+        }
+        
+        setError(errorMessage || 'Failed to fetch recommendations. Please check if backend is running on port 8000.');
       } finally {
         setLoading(false);
       }
@@ -240,14 +222,33 @@ export default function RecommendationResults() {
                     <div className={`text-xs mb-1 ${
                       theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
                     }`}>
+                      Travel Month
+                    </div>
+                    <div className={`text-lg font-bold ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {preferences.travelMonth || 'Not specified'}
+                    </div>
+                  </div>
+
+                  <div className={`p-3 rounded-xl ${
+                    theme === 'dark' ? 'bg-slate-900/50' : 'bg-gray-50'
+                  }`}>
+                    <div className={`text-xs mb-1 ${
+                      theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                    }`}>
                       Trip Types
                     </div>
                     <div className={`text-sm font-bold ${
                       theme === 'dark' ? 'text-white' : 'text-gray-900'
                     }`}>
                       {Array.isArray(preferences.tripTypes) 
-                        ? preferences.tripTypes.map(t => t.split(' ')[0]).join(' ')
-                        : preferences.tripType?.split(' ')[0]}
+                        ? preferences.tripTypes.map(t => {
+                            // Remove emoji and get text (e.g., "⛰️ Natural Attractions" -> "Natural Attractions")
+                            const parts = t.split(' ');
+                            return parts.slice(1).join(' '); // Skip first part (emoji)
+                          }).join(', ')
+                        : preferences.tripType?.split(' ').slice(1).join(' ')}
                     </div>
                   </div>
                 </div>
@@ -287,21 +288,12 @@ export default function RecommendationResults() {
             }`}>
               {error}
             </p>
-            <div className="flex gap-4 justify-center">
-              <button
-                onClick={testBackendConnection}
-                disabled={testingConnection}
-                className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all duration-300 disabled:opacity-50"
-              >
-                {testingConnection ? 'Testing...' : '🔍 Test Backend Connection'}
-              </button>
-              <button
-                onClick={() => navigate("/recommendation")}
-                className="px-6 py-3 bg-gradient-to-r from-teal-600 via-cyan-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
-              >
-                Try Again
-              </button>
-            </div>
+            <button
+              onClick={() => navigate("/recommendation")}
+              className="px-6 py-3 bg-gradient-to-r from-teal-600 via-cyan-600 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
+            >
+              Try Again
+            </button>
           </div>
         ) : recommendedPlaces.length === 0 ? (
           <div className={`text-center py-12 rounded-2xl ${
@@ -356,7 +348,6 @@ export default function RecommendationResults() {
                         className="w-full h-full object-cover"
                         loading="lazy"
                         onError={(e) => {
-                          console.log(`Failed to load image for ${place.name}:`, place.image);
                           // Fallback to icon if image fails to load
                           e.target.style.display = 'none';
                           if (!e.target.parentElement.querySelector('.fallback-icon')) {
@@ -370,9 +361,6 @@ export default function RecommendationResults() {
                                              place.type?.includes('Urban') ? '🏙️' : '📍';
                             e.target.parentElement.appendChild(icon);
                           }
-                        }}
-                        onLoad={(e) => {
-                          console.log(`✅ Loaded image for ${place.name}`);
                         }}
                       />
                     ) : (
@@ -504,7 +492,6 @@ export default function RecommendationResults() {
 
                     <button
                       onClick={() => {
-                        console.log('View Details clicked for place:', place.id, place.name);
                         navigate(`/place/${place.id}`, {
                           state: {
                             fromRecommendations: true,
