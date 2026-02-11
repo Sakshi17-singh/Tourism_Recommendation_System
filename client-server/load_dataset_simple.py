@@ -9,28 +9,42 @@ import os
 
 def load_data():
     # Connect to database
-    db_path = 'app/tourism.db'
+    db_path = 'tourism.db'
     if not os.path.exists(db_path):
-        db_path = 'tourism.db'
+        db_path = 'app/tourism.db'
+    if not os.path.exists(db_path):
+        db_path = 'instance/tourism.db'
     
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    # CSV path
-    csv_path = 'datasets/dataset_with_all_image_path.csv'
+    # CSV path - try multiple locations
+    csv_paths = [
+        'datasets/dataset_with_all_image_path.csv',
+        '../datasets/dataset_with_all_image_path.csv',
+        'client-server/datasets/dataset_with_all_image_path.csv'
+    ]
     
-    if not os.path.exists(csv_path):
-        print(f"❌ CSV file not found: {csv_path}")
+    csv_path = None
+    for path in csv_paths:
+        if os.path.exists(path):
+            csv_path = path
+            break
+    
+    if not csv_path:
+        print(f"❌ CSV file not found in any of these locations:")
+        for path in csv_paths:
+            print(f"   - {path}")
         return
     
     print(f"📂 Reading CSV: {csv_path}")
     
-    # Clear existing data
-    cursor.execute("DELETE FROM places")
-    cursor.execute("DELETE FROM hotels")
-    cursor.execute("DELETE FROM restaurants")
-    cursor.execute("DELETE FROM events")
-    print("🗑️  Cleared existing places, hotels, restaurants, and events")
+    # Clear existing dataset data only (keep user submissions)
+    cursor.execute("DELETE FROM places WHERE source = 'dataset' OR source IS NULL")
+    cursor.execute("DELETE FROM hotels WHERE place_id NOT IN (SELECT id FROM places)")
+    cursor.execute("DELETE FROM restaurants WHERE place_id NOT IN (SELECT id FROM places)")
+    cursor.execute("DELETE FROM events WHERE place_id NOT IN (SELECT id FROM places)")
+    print("🗑️  Cleared existing dataset places (kept user submissions)")
     
     places_count = 0
     hotels_count = 0
@@ -77,8 +91,8 @@ def load_data():
                     name, location, type, description, tags, image_url,
                     latitude, longitude, best_season, activities,
                     difficulty_level, accessibility, transportation,
-                    province, rating, all_images
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    province, rating, all_images, source, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 destination_name,
                 row.get('district', ''),
@@ -95,7 +109,9 @@ def load_data():
                 row.get('transportation', ''),
                 row.get('province', ''),
                 parse_rating(row),
-                json.dumps(dest_images) if dest_images else None
+                json.dumps(dest_images) if dest_images else None,
+                'dataset',  # source
+                'approved'  # status - dataset places are pre-approved
             ))
             
             place_id = cursor.lastrowid

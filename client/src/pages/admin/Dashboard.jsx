@@ -29,6 +29,33 @@ export default function AdminDashboard() {
   });
   const [selectedReview, setSelectedReview] = useState(null);
 
+  // Helper function to get auth headers with JWT token
+  const getAuthHeaders = () => {
+    const adminData = localStorage.getItem("admin");
+    if (!adminData) {
+      navigate("/admin/login");
+      return null;
+    }
+    
+    try {
+      const admin = JSON.parse(adminData);
+      if (!admin.access_token) {
+        navigate("/admin/login");
+        return null;
+      }
+      
+      return {
+        headers: {
+          'Authorization': `Bearer ${admin.access_token}`
+        }
+      };
+    } catch (err) {
+      console.error("Failed to parse admin data:", err);
+      navigate("/admin/login");
+      return null;
+    }
+  };
+
   // Fetch submitted places (user submissions only) - load on mount for stats
   useEffect(() => {
     const fetchSubmittedPlaces = async () => {
@@ -74,12 +101,19 @@ export default function AdminDashboard() {
   // Fetch last login/logout times
   useEffect(() => {
     const fetchAdminActivity = async () => {
+      const authHeaders = getAuthHeaders();
+      if (!authHeaders) return;
+      
       try {
-        const res = await axios.get("http://localhost:8000/admin/activity");
+        const res = await axios.get("http://localhost:8000/admin/activity", authHeaders);
         setLastLoginTime(res.data.lastLogin);
         setLastLogoutTime(res.data.lastLogout);
       } catch (err) {
         console.error("Failed to fetch admin activity:", err);
+        // Don't redirect on 404 - this endpoint might not exist
+        if (err.response?.status === 401) {
+          navigate("/admin/login");
+        }
       }
     };
     fetchAdminActivity();
@@ -88,11 +122,17 @@ export default function AdminDashboard() {
   // Fetch reviews
   useEffect(() => {
     const fetchReviews = async () => {
+      const authHeaders = getAuthHeaders();
+      if (!authHeaders) return;
+      
       try {
-        const res = await axios.get("http://localhost:8000/admin/reviews");
+        const res = await axios.get("http://localhost:8000/admin/reviews", authHeaders);
         setReviews(res.data.reviews || []);
       } catch (err) {
         console.error("Failed to fetch reviews:", err);
+        if (err.response?.status === 401) {
+          navigate("/admin/login");
+        }
       }
     };
     fetchReviews();
@@ -101,11 +141,17 @@ export default function AdminDashboard() {
   // Fetch review stats
   useEffect(() => {
     const fetchReviewStats = async () => {
+      const authHeaders = getAuthHeaders();
+      if (!authHeaders) return;
+      
       try {
-        const res = await axios.get("http://localhost:8000/admin/dashboard/review-stats");
+        const res = await axios.get("http://localhost:8000/admin/dashboard/review-stats", authHeaders);
         setReviewStats(res.data);
       } catch (err) {
         console.error("Failed to fetch review stats:", err);
+        if (err.response?.status === 401) {
+          navigate("/admin/login");
+        }
       }
     };
     fetchReviewStats();
@@ -174,8 +220,11 @@ export default function AdminDashboard() {
 
   // Approve review handler
   const handleApproveReview = async (reviewId) => {
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders) return;
+    
     try {
-      await axios.post(`http://localhost:8000/admin/reviews/${reviewId}/approve`);
+      await axios.post(`http://localhost:8000/admin/reviews/${reviewId}/approve`, {}, authHeaders);
       setReviews(prev => prev.map(r => 
         r.id === reviewId ? { ...r, status: 'approved' } : r
       ));
@@ -191,7 +240,11 @@ export default function AdminDashboard() {
       showToast('success', 'Review approved successfully!');
     } catch (err) {
       console.error("Failed to approve review:", err);
-      showToast('error', 'Failed to approve review. Please try again.');
+      if (err.response?.status === 401) {
+        navigate("/admin/login");
+      } else {
+        showToast('error', 'Failed to approve review. Please try again.');
+      }
     }
   };
 
@@ -199,8 +252,11 @@ export default function AdminDashboard() {
   const handleRejectReview = async (reviewId) => {
     if (!window.confirm("Are you sure you want to reject this review?")) return;
     
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders) return;
+    
     try {
-      await axios.post(`http://localhost:8000/admin/reviews/${reviewId}/reject`);
+      await axios.post(`http://localhost:8000/admin/reviews/${reviewId}/reject`, {}, authHeaders);
       setReviews(prev => prev.map(r => 
         r.id === reviewId ? { ...r, status: 'rejected' } : r
       ));
@@ -216,7 +272,11 @@ export default function AdminDashboard() {
       showToast('success', 'Review rejected successfully!');
     } catch (err) {
       console.error("Failed to reject review:", err);
-      showToast('error', 'Failed to reject review. Please try again.');
+      if (err.response?.status === 401) {
+        navigate("/admin/login");
+      } else {
+        showToast('error', 'Failed to reject review. Please try again.');
+      }
     }
   };
 
@@ -224,8 +284,11 @@ export default function AdminDashboard() {
   const handleDeleteReview = async (reviewId) => {
     if (!window.confirm("Are you sure you want to delete this review? This action cannot be undone.")) return;
     
+    const authHeaders = getAuthHeaders();
+    if (!authHeaders) return;
+    
     try {
-      await axios.delete(`http://localhost:8000/admin/reviews/${reviewId}`);
+      await axios.delete(`http://localhost:8000/admin/reviews/${reviewId}`, authHeaders);
       setReviews(prev => prev.filter(r => r.id !== reviewId));
       setSelectedReview(null);
       // Update stats
@@ -236,7 +299,11 @@ export default function AdminDashboard() {
       showToast('success', 'Review deleted successfully!');
     } catch (err) {
       console.error("Failed to delete review:", err);
-      showToast('error', 'Failed to delete review. Please try again.');
+      if (err.response?.status === 401) {
+        navigate("/admin/login");
+      } else {
+        showToast('error', 'Failed to delete review. Please try again.');
+      }
     }
   };
 
@@ -249,19 +316,17 @@ export default function AdminDashboard() {
 
   // Sign Out handler
   const handleSignOut = async () => {
+    const authHeaders = getAuthHeaders();
+    
     try {
-      const activity_id = localStorage.getItem("adminActivityId");
-      await axios.post("http://localhost:8000/admin/logout", { activity_id });
-      localStorage.removeItem("adminToken");
-      localStorage.removeItem("adminActivityId");
-      localStorage.removeItem("admin");
-      // Use navigate instead of window.location for React Router
-      navigate("/admin/login");
+      if (authHeaders) {
+        await axios.post("http://localhost:8000/admin/logout", {}, authHeaders);
+      }
     } catch (err) {
-      console.error("Sign-out failed:", err);
-      // Even if API fails, clear local storage and redirect
-      localStorage.removeItem("adminToken");
-      localStorage.removeItem("adminActivityId");
+      console.error("Sign-out API failed:", err);
+      // Continue with logout even if API fails
+    } finally {
+      // Always clear local storage and redirect
       localStorage.removeItem("admin");
       navigate("/admin/login");
     }

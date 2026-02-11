@@ -20,18 +20,17 @@ export default function AdminLogin() {
         { withCredentials: true }
       );
 
-      // Save admin info and login time
+      // Save admin info with JWT tokens
       const adminData = {
-        ...res.data,
+        admin_id: res.data.admin_id,
+        username: res.data.username,
+        access_token: res.data.access_token,
+        refresh_token: res.data.refresh_token,
+        token_type: res.data.token_type,
         login_time: res.data.login_time || new Date().toISOString(),
         last_logout: null,
       };
       localStorage.setItem("admin", JSON.stringify(adminData));
-
-      // Optional: save backend-provided activity_id
-      if (res.data.activity_id) {
-        localStorage.setItem("adminActivityId", res.data.activity_id);
-      }
 
       navigate("/admin/dashboard");
     } catch (err) {

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from ..database import SessionLocal
 from ..models import Admin, Booking, Review
+from ..auth import generate_token, hash_password, verify_password, admin_required
 import requests
 import os
 from datetime import datetime
@@ -14,32 +15,160 @@ import json
 admin_bp = Blueprint("admin", __name__)
 
 # -----------------------------
-# Admin Login
+# Admin Login with JWT
 # -----------------------------
 @admin_bp.route("/admin/login", methods=["POST"])
 def admin_login():
+    """Admin login endpoint with JWT token generation"""
     data = request.get_json()
     if not data:
         return jsonify({"error": "Missing data"}), 400
 
     username = data.get("username")
     password = data.get("password")
+    
     if not username or not password:
         return jsonify({"error": "Username and password required"}), 400
 
     db: Session = SessionLocal()
     try:
         admin = db.query(Admin).filter(Admin.username == username).first()
-        if not admin or admin.password != password:
+        
+        if not admin:
             return jsonify({"error": "Invalid credentials"}), 401
+        
+        # Support both hashed and plain passwords for migration
+        password_valid = False
+        if admin.password.startswith('pbkdf2:sha256:'):
+            # Hashed password
+            password_valid = verify_password(password, admin.password)
+        else:
+            # Plain password (legacy)
+            password_valid = (admin.password == password)
+            # Auto-upgrade to hashed password
+            if password_valid:
+                admin.password = hash_password(password)
+                db.commit()
+        
+        if not password_valid:
+            return jsonify({"error": "Invalid credentials"}), 401
+
+        # Generate JWT tokens
+        access_token = generate_token(admin.id, admin.username, role='admin', token_type='access')
+        refresh_token = generate_token(admin.id, admin.username, role='admin', token_type='refresh')
 
         return jsonify({
             "message": "Admin login successful",
             "admin_id": admin.id,
-            "username": admin.username
+            "username": admin.username,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "Bearer",
+            "login_time": datetime.utcnow().isoformat()
         }), 200
     finally:
         db.close()
+
+
+# -----------------------------
+# Admin Registration (Protected - only existing admins can create new admins)
+# -----------------------------
+@admin_bp.route("/admin/register", methods=["POST"])
+@admin_required
+def admin_register():
+    """Register new admin - requires existing admin authentication"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Missing data"}), 400
+
+    username = data.get("username")
+    password = data.get("password")
+    
+    if not username or not password:
+        return jsonify({"error": "Username and password required"}), 400
+    
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters"}), 400
+
+    db: Session = SessionLocal()
+    try:
+        # Check if admin already exists
+        existing = db.query(Admin).filter(Admin.username == username).first()
+        if existing:
+            return jsonify({"error": "Admin username already exists"}), 400
+        
+        # Create new admin with hashed password
+        new_admin = Admin(
+            username=username,
+            password=hash_password(password)
+        )
+        db.add(new_admin)
+        db.commit()
+        
+        return jsonify({
+            "message": "Admin registered successfully",
+            "admin_id": new_admin.id,
+            "username": new_admin.username
+        }), 201
+    finally:
+        db.close()
+
+
+# -----------------------------
+# Token Refresh
+# -----------------------------
+@admin_bp.route("/admin/refresh", methods=["POST"])
+def admin_refresh_token():
+    """Refresh access token using refresh token"""
+    from ..auth import decode_token
+    
+    data = request.get_json()
+    if not data or not data.get("refresh_token"):
+        return jsonify({"error": "Refresh token required"}), 400
+    
+    refresh_token = data.get("refresh_token")
+    
+    # Decode and validate refresh token
+    payload = decode_token(refresh_token)
+    if not payload:
+        return jsonify({"error": "Invalid or expired refresh token"}), 401
+    
+    # Check if it's a refresh token
+    if payload.get('type') != 'refresh':
+        return jsonify({"error": "Invalid token type"}), 401
+    
+    # Check if user is admin
+    if payload.get('role') != 'admin':
+        return jsonify({"error": "Admin token required"}), 403
+    
+    # Generate new access token
+    access_token = generate_token(
+        payload['user_id'], 
+        payload['username'], 
+        role='admin', 
+        token_type='access'
+    )
+    
+    return jsonify({
+        "access_token": access_token,
+        "token_type": "Bearer"
+    }), 200
+
+
+# -----------------------------
+# Admin Logout
+# -----------------------------
+@admin_bp.route("/admin/logout", methods=["POST"])
+def admin_logout():
+    """Logout admin - blacklist the token"""
+    from ..auth import blacklist_token
+    
+    auth_header = request.headers.get('Authorization')
+    if auth_header:
+        token = auth_header.split(' ')[1]
+        blacklist_token(token)
+    
+    return jsonify({"message": "Logged out successfully"}), 200
 
 # -----------------------------
 # Clerk Helper
@@ -65,19 +194,79 @@ def get_users_from_clerk():
         return []
 
 # -----------------------------
-# Dashboard Endpoints
+# Dashboard Endpoints (Protected)
 # -----------------------------
+
+# Main Dashboard - Get all statistics
+@admin_bp.route("/admin/dashboard", methods=["GET"])
+@admin_required
+def admin_dashboard():
+    """Get all dashboard statistics - requires admin authentication"""
+    from ..models import Place, Event, Hotel, Restaurant
+    
+    session = SessionLocal()
+    try:
+        # Get counts from database
+        total_places = session.query(Place).count()
+        total_events = session.query(Event).count()
+        total_hotels = session.query(Hotel).count()
+        total_restaurants = session.query(Restaurant).count()
+        total_bookings = session.query(Booking).count()
+        
+        # Get users from Clerk
+        users = get_users_from_clerk()
+        total_users = len([u for u in users if u.get("id")])
+        
+        # Get new users this month
+        this_month = datetime.utcnow().month
+        new_users_count = 0
+        for u in users:
+            created_at = u.get("created_at")
+            if not created_at:
+                continue
+            try:
+                if isinstance(created_at, int):
+                    if created_at > 1e12:
+                        created_at /= 1000
+                    dt = datetime.utcfromtimestamp(created_at)
+                else:
+                    dt = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+                if dt.month == this_month:
+                    new_users_count += 1
+            except Exception:
+                continue
+        
+        # Get bookings per location
+        bookings_by_location = session.query(Booking.place_location, func.count(Booking.id)).group_by(Booking.place_location).all()
+        bookings_data = [{"location": row[0], "count": row[1]} for row in bookings_by_location if row[0]]
+        
+        return jsonify({
+            "total_places": total_places,
+            "total_events": total_events,
+            "total_hotels": total_hotels,
+            "total_restaurants": total_restaurants,
+            "total_bookings": total_bookings,
+            "total_users": total_users,
+            "new_users_this_month": new_users_count,
+            "bookings_by_location": bookings_data
+        })
+    finally:
+        session.close()
 
 # Total registered users
 @admin_bp.route("/admin/dashboard/user-count", methods=["GET"])
+@admin_required
 def total_users():
+    """Get total user count - requires admin authentication"""
     users = get_users_from_clerk()
     valid_users = [u for u in users if u.get("id")]
     return jsonify({"totalUsers": len(valid_users)})
 
 # New users this month
 @admin_bp.route("/admin/dashboard/new-users", methods=["GET"])
+@admin_required
 def new_users():
+    """Get new users this month - requires admin authentication"""
     users = get_users_from_clerk()
     this_month = datetime.utcnow().month
     count = 0
@@ -103,19 +292,23 @@ def new_users():
 
 # Total bookings from SQLite
 @admin_bp.route("/admin/dashboard/total-bookings", methods=["GET"])
+@admin_required
 def total_bookings():
+    """Get total bookings - requires admin authentication"""
     session = SessionLocal()
     count = session.query(Booking).count()
     session.close()
     return jsonify({"totalBookings": count})
 
-# Bookings per city
-@admin_bp.route("/admin/dashboard/bookings-per-city", methods=["GET"])
-def bookings_per_city():
+# Bookings per location
+@admin_bp.route("/admin/dashboard/bookings-per-location", methods=["GET"])
+@admin_required
+def bookings_per_location():
+    """Get bookings per location - requires admin authentication"""
     session = SessionLocal()
-    results = session.query(Booking.city, func.count(Booking.id)).group_by(Booking.city).all()
+    results = session.query(Booking.place_location, func.count(Booking.id)).group_by(Booking.place_location).all()
     session.close()
-    data = [{"city": row[0], "count": row[1]} for row in results]
+    data = [{"location": row[0], "count": row[1]} for row in results if row[0]]
     return jsonify(data)
 
 
@@ -125,6 +318,7 @@ def bookings_per_city():
 
 # Get all reviews for admin panel
 @admin_bp.route("/admin/reviews", methods=["GET"])
+@admin_required
 def admin_get_reviews():
     """Get all reviews with filtering options"""
     try:
@@ -184,6 +378,7 @@ def admin_get_reviews():
 
 # Get review statistics for dashboard
 @admin_bp.route("/admin/dashboard/review-stats", methods=["GET"])
+@admin_required
 def review_stats():
     """Get review statistics for admin dashboard"""
     try:
@@ -228,6 +423,7 @@ def review_stats():
 
 # Approve review
 @admin_bp.route("/admin/reviews/<int:review_id>/approve", methods=["POST"])
+@admin_required
 def approve_review(review_id):
     """Approve a review"""
     try:
@@ -261,6 +457,7 @@ def approve_review(review_id):
 
 # Reject review
 @admin_bp.route("/admin/reviews/<int:review_id>/reject", methods=["POST"])
+@admin_required
 def reject_review(review_id):
     """Reject a review"""
     try:
@@ -293,6 +490,7 @@ def reject_review(review_id):
 
 # Delete review
 @admin_bp.route("/admin/reviews/<int:review_id>", methods=["DELETE"])
+@admin_required
 def delete_review(review_id):
     """Delete a review"""
     try:

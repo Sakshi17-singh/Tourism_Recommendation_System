@@ -11,9 +11,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from app.database import SessionLocal
 from app.models import Admin
+from app.auth import hash_password
 
 def create_admin(username="admin", password="admin123"):
-    """Create or update admin user"""
+    """Create or update admin user with hashed password"""
     db = SessionLocal()
     
     try:
@@ -24,7 +25,7 @@ def create_admin(username="admin", password="admin123"):
             print(f"⚠️  Admin user '{username}' already exists!")
             update = input("Do you want to update the password? (yes/no): ").lower()
             if update == 'yes':
-                existing_admin.password = password
+                existing_admin.password = hash_password(password)
                 db.commit()
                 print(f"✅ Admin password updated successfully!")
                 print(f"   Username: {username}")
@@ -32,10 +33,10 @@ def create_admin(username="admin", password="admin123"):
             else:
                 print("❌ No changes made.")
         else:
-            # Create new admin
+            # Create new admin with hashed password
             new_admin = Admin(
                 username=username,
-                password=password
+                password=hash_password(password)
             )
             db.add(new_admin)
             db.commit()

@@ -2,13 +2,18 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from flask_sqlalchemy import SQLAlchemy
+import os
 
 # -----------------------------
 # SQLAlchemy setup
 # -----------------------------
-engine = create_engine("sqlite:///./tourism.db", connect_args={"check_same_thread": False})
+# Use absolute path to the database file
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'tourism.db')
+engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+print(f"📊 Using database: {DB_PATH}")
 
 # -----------------------------
 # Flask-SQLAlchemy setup
