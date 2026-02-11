@@ -20,6 +20,7 @@ from .routes.restaurants import restaurants_bp
 from .routes.images import images_bp
 from .routes.recommendations import recommendations_bp  # ⭐ Recommendations routes
 from .routes.reviews import reviews_bp  # ⭐ Reviews routes
+from .routes.contact import contact_bp  # ⭐ Contact form routes
 # Removed place_details_bp - using places_bp instead which has events support
 
 # -----------------------------
@@ -81,6 +82,7 @@ def create_app():
     app.register_blueprint(images_bp, url_prefix="/api")
     app.register_blueprint(recommendations_bp, url_prefix="/api")  # Recommendations routes
     app.register_blueprint(reviews_bp, url_prefix="/api")  # Reviews routes
+    app.register_blueprint(contact_bp, url_prefix="/api")  # Contact form routes
     # Removed place_details_bp registration - using places_bp instead
     app.register_blueprint(admin_bp)  # Admin login/dashboard routes (no prefix, routes already have /admin)
 
